@@ -7,11 +7,13 @@
 
 typedef struct path{
   char *moviments;
+  int time;
   int distance;
 } Path;
 
 typedef struct node{
   int index;
+  int floor;
   int visited;
   Path smaller_path;
   struct node *up_edge;
@@ -19,6 +21,12 @@ typedef struct node{
   struct node *left_edge;
   struct node *right_edge;
 } Node;
+
+typedef struct heep{
+  int size;
+  Node *nodes_list;
+} Heep;
+
 
 typedef struct graph{
   Node node[GRAPH_LINES][GRAPH_COLUNS];
@@ -71,6 +79,27 @@ Path adds_moviment_to_path(Path path, char moviment){
   return new_path;
 }
 
+Path adds_moviment_to_path_2(Path path, char moviment,int same_floor){
+  Path new_path;
+  new_path.distance = path.distance + 1;
+  new_path.moviments = (char*)malloc(new_path.distance*sizeof(char));
+  if(new_path.distance == 1){
+    new_path.moviments[0] = moviment;
+  }
+  else{
+    for(int i = 0; i < path.distance; i++){
+      new_path.moviments[i] = path.moviments[i];
+    }
+    new_path.moviments[path.distance] = moviment;
+  }
+  if(same_floor){
+    new_path.time = path.time + 2;
+  }
+  else{
+    new_path.time = path.time + 6;
+  }
+  return new_path;
+}
 
 Path breadth_first_search(Graph graph,int line,int colum, int end_line,
                           int end_colum){
@@ -129,4 +158,101 @@ Path breadth_first_search(Graph graph,int line,int colum, int end_line,
         }
       }
     }
+}
+
+Heep heepify(Heep heep){
+  if(heep.size >= 2){
+    for(int i = 0; i < heep.size/2;i++){
+      if((i+1)*2 < heep.size){
+        if(heep.nodes_list[i].smaller_path.time > heep.nodes_list[(i+1)*2].smaller_path.time ){
+          Node aux = heep.nodes_list[i];
+          heep.nodes_list[i]= heep.nodes_list[(i+1)*2];
+          heep.nodes_list[(i+1)*2] = aux;
+        }
+      }
+      if(heep.nodes_list[i].smaller_path.time > heep.nodes_list[(i+1)*2-1].smaller_path.time ){
+        Node aux = heep.nodes_list[i];
+        heep.nodes_list[i]= heep.nodes_list[(i+1)*2-1];
+        heep.nodes_list[(i+1)*2-1] = aux;
+      }
+    }
+  }
+  return heep;
+}
+
+Heep add_heep(Heep heep, Node node){
+  Node *new_nodes_list;
+  new_nodes_list = (Node*)malloc((heep.size + 1) * sizeof(Node));
+  if(heep.size > 0){
+    for(int i = 0; i < heep.size; i++){
+      new_nodes_list[i] = heep.nodes_list[i];
+    }
+  }
+  new_nodes_list[heep.size] = node;
+  heep.nodes_list = new_nodes_list;
+  heep.size++;
+  return heepify(heep);
+}
+
+Heep remove_heep(Heep heep){
+  Node *new_nodes_list;
+  new_nodes_list = (Node*)malloc((heep.size - 1) * sizeof(Node));
+  for(int i = 0; i < heep.size - 1; i++){
+    new_nodes_list[i] = heep.nodes_list[i + 1];
+  }
+  heep.nodes_list = new_nodes_list;
+  heep.size--;
+  return heepify(heep);
+}
+
+Path shortest_path(Graph graph,int line,int colum, int end_line, int end_colum){
+  int end_index = end_line * 10 + end_colum;
+  Heep heep;
+  heep.size = 0;
+  graph.node[line][colum].smaller_path.time = 0;
+  graph.node[line][colum].smaller_path.distance = 0;
+  graph.node[line][colum].smaller_path.moviments = NULL;
+  heep = add_heep(heep,graph.node[line][colum]);
+  while(heep.size > 0){
+    if(end_index == heep.nodes_list[0].index){
+      return heep.nodes_list[0].smaller_path;
+    }
+
+    line = heep.nodes_list[0].index / 10;
+    colum = heep.nodes_list[0].index % 10;
+    heep = remove_heep(heep);
+
+    if(graph.node[line][colum].up_edge != NULL){
+      int same_floor = 0;
+      if(graph.node[line - 1][colum].floor == graph.node[line][colum].floor ){
+        same_floor = 1;
+      }
+      graph.node[line - 1][colum].smaller_path = adds_moviment_to_path_2(graph.node[line][colum].smaller_path,'u',same_floor);
+      heep = add_heep(heep,graph.node[line - 1][colum]);
+    }
+    if(graph.node[line][colum].down_edge != NULL){
+      int same_floor = 0;
+      if(graph.node[line + 1][colum].floor == graph.node[line][colum].floor ){
+        same_floor = 1;
+      }
+      graph.node[line + 1][colum].smaller_path = adds_moviment_to_path_2(graph.node[line][colum].smaller_path,'d',same_floor);
+      heep = add_heep(heep,graph.node[line + 1][colum]);
+    }
+    if(graph.node[line][colum].left_edge != NULL){
+      int same_floor = 0;
+      if(graph.node[line][colum - 1].floor == graph.node[line][colum].floor ){
+        same_floor = 1;
+      }
+      graph.node[line][colum - 1].smaller_path = adds_moviment_to_path_2(graph.node[line][colum].smaller_path,'l',same_floor);
+      heep = add_heep(heep,graph.node[line][colum - 1]);
+    }
+    if(graph.node[line][colum].right_edge != NULL){
+      int same_floor = 0;
+      if(graph.node[line][colum + 1].floor == graph.node[line][colum].floor ){
+        same_floor = 1;
+      }
+      graph.node[line][colum + 1].smaller_path = adds_moviment_to_path_2(graph.node[line][colum].smaller_path,'r',same_floor);
+      heep = add_heep(heep,graph.node[line][colum + 1]);
+    }
+  }
 }
